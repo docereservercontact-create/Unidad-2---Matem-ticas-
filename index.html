@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Examen de Matemáticas | Unidad 1: Decimales</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+body { font-family: Arial; margin:0; background:#f4f6f9; }
+
+#inicio, #resultados {
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    height:100vh;
+}
+
+input { padding:10px; margin:10px; width:250px; }
+
+button {
+    padding:10px 20px;
+    background:#2c7be5;
+    color:white; border:none;
+    cursor:pointer;
+}
+
+#examen { display:none; min-height:100vh; }
+
+.container { display:flex; height:100%; }
+
+.left { width:50%; }
+.right { width:50%; overflow-y:scroll; padding:20px; }
+
+iframe { width:100%; height:100%; }
+
+.timer {
+    position:fixed; top:10px; right:20px;
+    background:black; color:white;
+    padding:10px;
+}
+
+.correcto { background:#c8f7c5; }
+.incorrecto { background:#f7c5c5; }
+
+.container {
+    display:flex;
+    min-height:100vh;
+}
+
+/* 📱 RESPONSIVE */
+@media (max-width: 900px){
+
+    .container{
+        flex-direction: column;
+    }
+
+    .left, .right{
+        width: 100%;
+        height: 50%;
+    }
+
+    iframe{
+        height: 100%;
+    }
+
+    .right{
+        padding: 10px;
+    }
+
+    input{
+        width: 90%;
+    }
+
+    button{
+        width: 90%;
+        margin-top: 10px;
+    }
+}
+
+/* 📱 celulares pequeños */
+@media (max-width: 500px){
+
+    .timer{
+        font-size: 14px;
+        padding: 5px;
+        right: 10px;
+    }
+
+    label{
+        font-size: 14px;
+    }
+
+    input{
+        font-size: 14px;
+        padding: 8px;
+    }
+}
+
+</style>
+</head>
+
+<body>
+
+<div id="inicio">
+    <h2>Examen de Matemáticas | Unidad 1: Decimales</h2>
+    <input id="nombre" placeholder="Usuario">
+    <input id="cuenta" placeholder="Contraseña">
+    <button onclick="iniciarExamen()">Iniciar</button>
+</div>
+
+<div id="examen">
+    <div class="timer" id="timer"></div>
+
+    <div class="container">
+        <div class="left">
+            <iframe src="./Examen.pdf"></iframe>
+        </div>
+        <div class="right" id="respuestas"></div>
+    </div>
+</div>
+
+<div id="resultados"></div>
+
+<script>
+// 🔐 ALUMNOS
+const alumnos = [
+    {nombre:"mmariazas10@gmail.com", cuenta:"Reg2026"},
+    {nombre:"danteramirezcabrera20@gmail.com", cuenta:"Reg2026"},
+    {nombre:"josebeth2810@gmail.com", cuenta:"UNAM2026"},
+    {nombre:"nahomiosorior@gmail.com", cuenta:"UNAM2026"},
+    {nombre:"emilyperez.her412@gmail.com", cuenta:"UNAM2026"},
+    {nombre:"diego0134r@gmail.com", cuenta:"UNAM2026"},
+    {nombre:"p13", cuenta:"1"},
+    {nombre:"p10", cuenta:"1"},
+    {nombre:"p9", cuenta:"1"},
+
+];
+
+// CONFIG
+const TOTAL_PREGUNTAS = 30;
+const respuestasCorrectas = [
+    "3.66","2.38","7.88","5.43","5.08","0.15","6.784","0.20","1.46","0.86",
+    "5/10","320/100","8.75","102.85","40","225/64","16/2","51/21","107/10","197/133",
+    "360/15","75/3","12/15","91/28","60/42","11/2","10/12","6/5","90/14","58/60"
+];
+
+let tiempo = 7200;
+let intervalo;
+let nombreAlumno, cuentaAlumno;
+
+// ⏱ tiempos
+let tiemposPreguntas = {};
+let inicioPregunta = Date.now();
+
+// INICIO
+function iniciarExamen() {
+
+    nombreAlumno = document.getElementById("nombre").value.trim();
+    cuentaAlumno = document.getElementById("cuenta").value.trim();
+
+    // 👨‍🏫 LOGIN PROFESOR
+    if(nombreAlumno === "admin" && cuentaAlumno === "123"){
+        verPanelProfesor();
+        return;
+    }
+
+    let alumnoValido = alumnos.find(a =>
+        a.nombre.toLowerCase() === nombreAlumno.toLowerCase() &&
+        a.cuenta === cuentaAlumno
+    );
+
+    if (!alumnoValido) {
+        alert("Alumno no registrado");
+        return;
+    }
+
+    if (sessionStorage.getItem("examen_" + cuentaAlumno)) {
+        alert("Ya realizaste este examen");
+        return;
+    }
+
+    alert("Reglas:\n- No cambiar de pestaña\n- No copiar/pegar\n- Tiempo limitado");
+
+    document.getElementById("inicio").style.display = "none";
+    document.getElementById("examen").style.display = "block";
+
+    generarPreguntas();
+    iniciarTimer();
+    activarSeguridad();
+
+    setInterval(guardarRespuestas, 5000);
+}
+
+// GENERAR
+function generarPreguntas() {
+    let cont = document.getElementById("respuestas");
+    cont.innerHTML = "";
+
+    for (let i=0;i<TOTAL_PREGUNTAS;i++) {
+        cont.innerHTML += `
+            <div>
+                <label>Pregunta ${i+1}</label>
+                <input id="p${i}" 
+                    onfocus="iniciarTiempo(${i})" 
+                    onblur="guardarTiempo(${i})"
+                    oninput="actualizarProgreso()">
+            </div>`;
+    }
+
+    cont.innerHTML += `<button onclick="terminarExamen()">Enviar</button>`;
+}
+
+// TIMER
+let progresoTexto = "0/0";
+
+function iniciarTimer() {
+    intervalo = setInterval(() => {
+
+        tiempo--;
+
+        let min = Math.floor(tiempo/60);
+        let seg = tiempo%60;
+
+        actualizarProgreso();
+
+        document.getElementById("timer").innerText =
+            `${min}:${seg.toString().padStart(2,'0')} | ${progresoTexto}`;
+
+        if (tiempo<=0) terminarExamen();
+
+    },1000);
+}
+
+// PROGRESO
+function actualizarProgreso() {
+    let c = 0;
+
+    for (let i=0;i<TOTAL_PREGUNTAS;i++) {
+        let v = document.getElementById(`p${i}`)?.value;
+        if (v) c++;
+    }
+
+    progresoTexto = `${c}/${TOTAL_PREGUNTAS}`;
+}
+
+// ⏱ TIEMPOS
+function iniciarTiempo(i){
+    inicioPregunta = Date.now();
+}
+
+function guardarTiempo(i){
+    let t = (Date.now() - inicioPregunta)/1000;
+    tiemposPreguntas[i] = (tiemposPreguntas[i]||0)+t;
+}
+
+// GUARDADO
+function guardarRespuestas() {
+    for (let i=0;i<TOTAL_PREGUNTAS;i++) {
+        let val = document.getElementById(`p${i}`)?.value || "";
+        localStorage.setItem(`resp_${cuentaAlumno}_${i}`, val);
+    }
+}
+
+// SEGURIDAD
+function activarSeguridad() {
+
+    document.addEventListener("contextmenu", e => e.preventDefault());
+
+    document.addEventListener("keydown", e=>{
+        if(e.ctrlKey && ['c','v','x'].includes(e.key)) e.preventDefault();
+    });
+
+    document.addEventListener("visibilitychange", ()=>{
+        if(document.hidden){
+            alert("Trampa detectada");
+            terminarExamen(true);
+        }
+    });
+
+    window.onbeforeunload = function(){
+        return "No puedes salir del examen";
+    };
+}
+
+// NORMALIZAR
+function normalizar(v){
+    return v.replace(/\s/g,"").toLowerCase();
+}
+
+// TERMINAR
+function terminarExamen(trampa=false) {
+
+    if (!trampa) {
+        if (!confirm("¿Seguro que deseas enviar?")) return;
+    }
+
+    clearInterval(intervalo);
+    
+    document.getElementById("examen").style.display="none";
+    document.getElementById("resultados").style.display="block";
+
+    let correctas=0;
+    let html=`<h2>Resultados</h2>
+              <p>${nombreAlumno}</p>
+              <p>${cuentaAlumno}</p>`;
+
+    html += "<table border='1'><tr><th>#</th><th>Tu</th><th>Correcta</th><th>Tiempo</th></tr>";
+
+    let datosPDF=[];
+
+    for(let i=0;i<TOTAL_PREGUNTAS;i++){
+
+        let resp=document.getElementById(`p${i}`)?.value || "";
+        let correcta=respuestasCorrectas[i];
+
+        let clase="incorrecto";
+
+        if(normalizar(resp)===normalizar(correcta) && !trampa){
+            correctas++;
+            clase="correcto";
+        }
+
+        html+=`<tr class="${clase}">
+            <td>${i+1}</td>
+            <td>${resp}</td>
+            <td>${correcta}</td>
+            <td>${(tiemposPreguntas[i]||0).toFixed(1)} seg</td>
+        </tr>`;
+
+        datosPDF.push([i+1,resp,correcta]);
+    }
+
+    html+="</table>";
+
+    let cal= trampa?0:(correctas/TOTAL_PREGUNTAS)*100;
+    window.trampaDetectada = trampa;
+    let tiempoTotal = 7200 - tiempo;
+    let minutos = Math.floor(tiempoTotal/60);
+    let cal10 = (cal/10).toFixed(1);
+
+    html+=`
+    <p><b>Porcentaje de conocimiento:</b> ${cal.toFixed(2)}%</p>
+    <p><b>Calificación (0-10):</b> ${cal10}</p>
+    <p><b>Tiempo total:</b> ${minutos} minutos</p>
+    <button onclick="generarPDF()">PDF</button>`;
+
+    document.getElementById("resultados").innerHTML=html;
+
+    // guardar para profesor
+    let historial = JSON.parse(localStorage.getItem("resultados_examen")) || [];
+    historial.push({
+        nombre:nombreAlumno,
+        cuenta:cuentaAlumno,
+        calificacion:cal,
+        porcentaje:cal.toFixed(2),
+        fecha:new Date().toLocaleString()
+    });
+    localStorage.setItem("resultados_examen", JSON.stringify(historial));
+
+    sessionStorage.setItem("examen_"+cuentaAlumno, "hecho");
+
+    window.datosPDF=datosPDF;
+    window.calificacion=cal;
+}
+
+// PANEL PROFESOR
+function verPanelProfesor(){
+
+    document.body.innerHTML = "<h1>Panel Profesor</h1>";
+
+    let data = JSON.parse(localStorage.getItem("resultados_examen")) || [];
+
+    let html = `<table border="1">
+        <tr>
+            <th>Nombre</th>
+            <th>Cuenta</th>
+            <th>Calificación</th>
+            <th>%</th>
+            <th>Fecha</th>
+        </tr>`;
+
+    data.forEach(d=>{
+        html += `
+        <tr>
+            <td>${d.nombre}</td>
+            <td>${d.cuenta}</td>
+            <td>${(d.calificacion/10).toFixed(1)}</td>
+            <td>${d.porcentaje}%</td>
+            <td>${d.fecha}</td>
+        </tr>`;
+    });
+
+    html += "</table><br><button onclick='location.reload()'>Regresar</button>";
+
+    document.body.innerHTML += html;
+}
+
+// PDF
+function generarPDF(){
+
+    const {jsPDF}=window.jspdf;
+    const doc=new jsPDF();
+
+    doc.text("Resultados",10,10);
+    doc.text(nombreAlumno,10,20);
+    doc.text(cuentaAlumno,10,30);
+
+    // 🔥 MENSAJE DE TRAMPA
+    if (window.trampaDetectada) {
+        doc.text("REPROBADO POR INTENTO DE HACER TRAMPA",10,40);
+    } else {
+        doc.text(calificacion.toFixed(2)+"%",10,40);
+    }
+
+    let y=50;
+
+    datosPDF.forEach(d=>{
+
+        // 🔥 salto de página automático
+        if (y > 280) {
+            doc.addPage();
+            y = 20;
+        }
+
+        doc.text(`${d[0]} | ${d[1]} | ${d[2]}`,10,y);
+        y+=10;
+    });
+
+    doc.save("resultado.pdf");
+}
+</script>
+
+</body>
+</html>

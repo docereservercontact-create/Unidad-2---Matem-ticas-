@@ -136,11 +136,24 @@ const alumnos = [
 ];
 
 // CONFIG
-const TOTAL_PREGUNTAS = 30;
-const respuestasCorrectas = [
-    "3.66","2.38","7.88","5.43","5.08","0.15","6.784","0.20","1.46","0.86",
-    "5/10","320/100","8.75","102.85","40","225/64","16/2","51/21","107/10","197/133",
-    "360/15","75/3","12/15","91/28","60/42","11/2","10/12","6/5","90/14","58/60"
+const TOTAL_PREGUNTAS = 10;
+const preguntas = [
+  { opciones:["16","12","18","20"], correcta:"16" },
+  { opciones:["9","6","3","12"], correcta:"9" },
+  { opciones:["6y^3/x","6x^3/y","3y^3/x","6y/x^3"], correcta:"6y^3/x" },
+  { opciones:["-3raiz(2)","3raiz(2)","-2raiz(2)","-3raiz(3)"], correcta:"-3raiz(2)" },
+  { opciones:["5raiz(3)/3","5/raiz(3)","3raiz(5)/5","5raiz(3)"], correcta:"5raiz(3)/3" },
+  { opciones:[
+      "2log(x)+1/2log(y)-3log(z)",
+      "log(x^2+y)-3log(z)",
+      "2log(xy)-3log(z)",
+      "log(x)+log(y)-log(z)"
+    ], correcta:"2log(x)+1/2log(y)-3log(z)"
+  },
+  { opciones:["6.784","6.874","6.748","6.804"], correcta:"6.784" },
+  { opciones:["0.20","0.02","2.0","0.25"], correcta:"0.20" },
+  { opciones:["1.46","1.64","1.36","1.56"], correcta:"1.46" },
+  { opciones:["0.86","0.68","0.96","0.76"], correcta:"0.86" }
 ];
 
 let tiempo = 7200;
@@ -196,15 +209,24 @@ function generarPreguntas() {
     cont.innerHTML = "";
 
     for (let i=0;i<TOTAL_PREGUNTAS;i++) {
+
+        let opcionesHTML = preguntas[i].opciones.map(op => `
+            <label>
+                <input type="radio" name="p${i}" value="${op}"
+                    onchange="actualizarProgreso()">
+                ${op}
+            </label><br>
+        `).join("");
+
         cont.innerHTML += `
             <div>
-                <label>Pregunta ${i+1}</label>
-                <input id="p${i}" 
-                    onfocus="iniciarTiempo(${i})" 
-                    onblur="guardarTiempo(${i})"
-                    oninput="actualizarProgreso()">
-            </div>`;
+                <p><b>Pregunta ${i+1}</b></p>
+                ${opcionesHTML}
+            </div><hr>`;
     }
+
+    cont.innerHTML += `<button onclick="terminarExamen()">Enviar</button>`;
+}
 
     cont.innerHTML += `<button onclick="terminarExamen()">Enviar</button>`;
 }
@@ -235,8 +257,8 @@ function actualizarProgreso() {
     let c = 0;
 
     for (let i=0;i<TOTAL_PREGUNTAS;i++) {
-        let v = document.getElementById(`p${i}`)?.value;
-        if (v) c++;
+        let marcado = document.querySelector(`input[name="p${i}"]:checked`);
+        if (marcado) c++;
     }
 
     progresoTexto = `${c}/${TOTAL_PREGUNTAS}`;
@@ -309,9 +331,10 @@ function terminarExamen(trampa=false) {
 
     for(let i=0;i<TOTAL_PREGUNTAS;i++){
 
-        let resp=document.getElementById(`p${i}`)?.value || "";
-        let correcta=respuestasCorrectas[i];
-
+        let seleccionado = document.querySelector(`input[name="p${i}"]:checked`);
+        let resp = seleccionado ? seleccionado.value : "";
+        let correcta = preguntas[i].correcta;
+        
         let clase="incorrecto";
 
         if(normalizar(resp)===normalizar(correcta) && !trampa){
